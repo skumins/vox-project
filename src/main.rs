@@ -1,37 +1,41 @@
-use axum::{
-    extract::ws::{Message, WebSocket, WebSocketUpgrade},
-    response::IntoResponse,
-    routing::get,
-    Router,
-};
+use std::net::SocketAddr;
+use std::sync::Arc;
+use axum::{routing::get, Router};
+use tokio::sync::Mutex;
 mod stt;
-use crate::stt::{Transcriber, MockStt};
+mod audio_capture;
+mod api {
+    pub mod ws;
+}
+use crate::stt::{MockStt, AudioConfig};
 
 #[tokio::main]
-
-
 async fn main() {
+    // Initialize to see events in console
+    tracing_subscriber::fmt::init();
+    // Create shared state
+    let stt_service = Arc::new(Mutex::new(MockStt));
+
+    println!("Starting AI Audio Workspace");
+
+    // Start local capture (cpal)
+    let stt_for_capture = stt_service.clone();
+
+    tokio::spawn(async move {
+        println!("Local capture task started");
+
+        if let Err(e) = audio_capture::audio_capture(stt_for_capture).await {
+            eprintln!("Capture Error: {}", e);
+        }
+    });
+
     let app = Router::new()
-        .route("/ws", get(ws_handler));
+        .route("/ws", get(api::ws::ws_handler))
+        .with_state(stt_service);
 
     let addr = std::net::SocketAddr::from(([127, 0, 0, 1], 3000));
     println!("Server running at http://{}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
-}
-
-async fn ws_handler(ws: WebSocketUpgrade) -> impl IntoRensponse {
-    ws.on_upgrade(handle_socket)
-}
-
-async fn handle_socket(mut socket: WebSocket) {
-    let mut stt_service = MockStt;
-    let _ = stt_service.connect().await;
-
-    while let Some(Ok(msg)) = socket.recv().await {
-        if let Message::Binary(data) = msg {
-            let _ = stt_service.handle_audio(data).await;
-        }
-    }
 }

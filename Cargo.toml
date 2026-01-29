@@ -6,7 +6,7 @@ edition = "2024"
 [dependencies]
 # Web
 axum = { version = "0.7", features = ["ws"] }
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1.48.0", features = ["full"] }
 tower-http = { version = "0.6", features = ["fs", "cors"] }
 
 # Async and Serialization
@@ -17,3 +17,7 @@ async-trait = "0.1"
 
 # Database
 sqlx = { version = "0.8", features =  ["runtime-tokio", "sqlite", "macros"]}
+
+# Sound
+cpal = "0.17.0"
+hound = "3.5"
