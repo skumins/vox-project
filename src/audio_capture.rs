@@ -1,13 +1,13 @@
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use crate::stt::{AudioConfig, Transcriber};
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, mpsc};
 
 pub async fn start_capture(stt: Arc<Mutex<dyn Transcriber>>) -> Result<(), String> {
     // Setup the host
     let host = cpal::default_host();
     // Select default input device
-    let device = host.default_output_device()
+    let device = host.default_input_device()
         .ok_or("No input device found")?;
 
     // Get supported config
@@ -15,35 +15,38 @@ pub async fn start_capture(stt: Arc<Mutex<dyn Transcriber>>) -> Result<(), Strin
         .map_err(|e| e.to_string())?;
 
     let audio_config = AudioConfig {
-        sample_rate: config.sample_rate().0,
+        sample_rate: config.sample_rate(),
     };
 
     // Initialize STT connection
     stt.lock().await.connect(audio_config).await?;
-    let stt_clone = stt.clone();
+    let(tx, mut rx) = mpsc::channel::<Vec<f32>>(100);
+
+    let stt_receiver = stt.clone();
+    tokio::spawn(async move {
+        while let Some(audio_data) = rx.recv().await {
+            let mut lock = stt_receiver.lock().await;
+            if let Err(e) = lock.handle_audio(audio_data).await {
+                eprintln!("Error STT processing: {}", e);
+            }
+        }
+    });
 
     // Build the input stream
     let stream = device.build_input_stream(
         &config.into(),
         move |data: &[f32], _: &_| {
             // Audio data input
-            let stt_clone = stt_clone.clone();
-            let chunk = data.to_vec();
-
-            // Processing without blocking the audio stream
-            tokio::spawn(async move {
-                let mut lock = stt_inner.lock().await;
-                let _ = lock.handle_audio(chunk).await;
-            });
+            let _ = tx.blocking_send(data.to_vec());
         },
-        |err| eprintln!("Audio stream error: {}", err),
+        |err| eprintln!("Error Audio: {}", err),
         None
     ).map_err(|e| e.to_string())?;
 
     // Start recording
     stream.play().map_err(|e| e.to_string())?;
 
-    // For testing 10s
-    tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+    println!("Audio recording started; press Ctrl+C to stop");
+    tokio::time::sleep(std::time::Duration::from_secs(100)).await;
     Ok(())
 }
