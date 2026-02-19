@@ -1,5 +1,5 @@
 use reqwest::Client;
-use serde::{Deserialize, Serialize}; // For transformation JSOM <=> Struct
+use serde::{Deserialize, Serialize}; // For transformation JSON
 use std::error::Error;
 
 #[derive(Debug, Deserialize)]
@@ -51,7 +51,8 @@ impl DeepgramService {
         let parsed: DeepgramResponse = response.json().await?;
 
         let transcript = parsed.results.channels
-            .first().and_then(|c| c.alternatives.first())
+            .first()
+            .and_then(|c| c.alternatives.first())
             .map(|a| a.transcript.clone())
             .unwrap_or_default();
 
