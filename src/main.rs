@@ -11,6 +11,7 @@ mod prompts;
 mod stt;
 mod audio_capture;
 mod config;
+mod api;
 
 use services::{deepgram::DeepgramService, llm::OpenRouterService};
 use config::Config;

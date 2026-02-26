@@ -45,6 +45,7 @@ impl DeepgramService {
         let response = self.client
             .post(url)
             .header("Authorization", format!("Token {}", self.api_key))
+            .header("Content-Type", "audio/wav")
             .body(audio_data)
             .send()
             .await?;
