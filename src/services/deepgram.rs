@@ -1,57 +1,66 @@
-use std::net::SocketAddr;
-use std::sync::Arc;
-use axum::{routing::post, Router};
-use tokio::sync::Mutex;
-use sqlx::sqlite::SqlitePool;
+  use reqwest::Client;
+use serde::{Deserialize, Serialize}; // For transformation JSON
+use std::error::Error;
 
-mod services;
-mod handlers;
-mod models;
-mod prompts;
-mod stt;
-mod audio_capture;
-mod config;
-
-use services::{deepgram::DeepgramService, llm::OpenRouterService};
-use config::Config;
-
-#[derive(Clone)]
-pub struct AppState {
-    pub db: SqlitePool,
-    pub deepgram: DeepgramService,
-    pub llm: OpenRouterService,
+#[derive(Debug, Deserialize)]
+struct Alternative {
+    transcript: String,
 }
 
-#[tokio::main]
-async fn main() {
-    // Initialize to see events in console
-    tracing_subscriber::fmt::init();
-    dotenvy::dotenv().ok();
+#[derive(Debug, Deserialize)]
+struct DeepgramResponse {
+    results: DeepgramResults,
+}
 
-    let config = Config::from_env().expect("Error configuring");
+#[derive(Debug, Deserialize)]
+struct DeepgramResults {
+    channels: Vec<Channel>,
+}
 
-    let db_pool = SqlitePool::connect(&config.database_url).await.unwrap();
-    sqlx::migrate!().run(&db_pool).await.unwrap();
+#[derive(Debug, Deserialize)]
+struct Channel {
+    alternatives: Vec<Alternative>,
+}
 
-    let deepgram = DeepgramService::new(config.deepgram_key);
-    let llm = OpenRouterService::new(config.openrouter_key, config.model);
+// Main Structure Service
+#[derive(Debug, Clone)]
+pub struct DeepgramService {
+    client: Client,
+    api_key: String,
+}
 
-    let state = AppState{
-        db: db_pool,
-        deepgram,
-        llm,
-    };
-    
-    println!("VOXA backend running...");
+impl DeepgramService {
+    pub fn new(api_key: String) -> Self {
+        Self {
+            client: Client::new(),
+            api_key,
+        }
+    }
 
-    // STARTING THE WEB SERVER
-    let app = Router::new()
-        .route("/transcribe", post(handlers::transcribe::transcribe_audio))
-        .with_state(state);
+    // Accept audio bytes and return text
+    // Box<dyn Error> it is "any error"
+    pub async fn transcribe(&self, audio_data: Vec<u8>) -> Result<String, Box<dyn Error>> {
+        let url = "https://api.deepgram.com/v1/listen?model=nova-3&smart_format=true";
 
-    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
-    println!("Server listening at http://{}", addr);
+        let response = self.client
+            .post(url)
+            .header("Authorization", format!("Token {}", self.api_key))
+            .body(audio_data)
+            .send()
+            .await?;
 
-    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+        if !response.status().is_success() {
+            return Err(format!("Deepgram API error: {}", response.status()).into());
+        }
+
+        let parsed: DeepgramResponse = response.json().await?;
+
+        let transcript = parsed.results.channels
+            .first()
+            .and_then(|c| c.alternatives.first())
+            .map(|a| a.transcript.clone())
+            .unwrap_or_default();
+
+        Ok(transcript)
+    }
 }

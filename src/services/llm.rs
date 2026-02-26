@@ -1,4 +1,4 @@
-use reqwest::Client;
+  use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::error::Error;
@@ -63,7 +63,7 @@ impl OpenRouterService {
         let content = parsed.choices
             .first()
             .map(|c| c.message.content.clone())
-            .unwrap_or(("No summary generated".to_string()));
+            .unwrap_or("No summary generated".to_string());
 
         Ok(content)
     }
