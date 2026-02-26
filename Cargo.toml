@@ -1,30 +1,6 @@
-[package]
-name = "vox-project"
-version = "0.1.0"
-edition = "2024"
+tree 240a1d18cf338126855b23088f164e4240fa6322
+parent d934a044977016765d41edc6a6bbf1833f1cb9f0
+author Serhii Skumin <serhiiskumin@gmail.com> 1772106147 +0100
+committer Serhii Skumin <serhiiskumin@gmail.com> 1772106147 +0100
 
-[dependencies]
-# Web
-axum = { version = "0.7", features = ["ws"] }
-tokio = { version = "1.48.0", features = ["full"] }
-tower-http = { version = "0.6", features = ["fs", "cors"] }
-
-# Async and Serialization
-futures = "0.3"
-tracing-subscriber = "0.3"
-async-trait = "0.1"
-
-# Database
-sqlx = { version = "0.8", features =  ["runtime-tokio", "sqlite", "macros"]}
-
-# Sound
-cpal = "0.17.0"
-hound = "3.5"
-
-
-dotenvy = "0.15"
-reqwest = { version = "0.11", features = ["json", "multipart"] }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-uuid = { version = "1", features = ["v4"] }
-thiserror = "1"
+add another error handler
