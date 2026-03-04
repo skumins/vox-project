@@ -62,6 +62,9 @@ pub async fn transcribe_audio(
     }
     };
 
+    // temporary solution for debugging 
+    println!("LLM response for testing:\n{}", processed_markdown);
+
     let id = Uuid::new_v4().to_string();
 
     let result = sqlx::query!(

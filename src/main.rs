@@ -1,6 +1,10 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
-use axum::{routing::post, Router};
+use axum::{
+    routing::post, 
+    Router,
+    extract::DefaultBodyLimit,
+};
 use tokio::sync::Mutex;
 use sqlx::sqlite::SqlitePool;
 
@@ -31,23 +35,20 @@ async fn main() {
 
     let config = Config::from_env().expect("Error configuring");
 
-    let db_pool = SqlitePool::connect(&config.database_url).await.unwrap();
-    sqlx::migrate!().run(&db_pool).await.unwrap();
-
-    let deepgram = DeepgramService::new(config.deepgram_key);
-    let llm = OpenRouterService::new(config.openrouter_key, config.model);
+    let db_pool = SqlitePool::connect(&config.database_url).await.expect("Failed to connect to database");
+    sqlx::migrate!("./migrations").run(&db_pool).await.expect("Migration failed");
 
     let state = AppState{
         db: db_pool,
-        deepgram,
-        llm,
+        deepgram: DeepgramService::new(config.deepgram_key.clone()),
+        llm: OpenRouterService::new(config.openrouter_key.clone(), config.model.clone()),
     };
     
     println!("VOXA backend running...");
 
-    // STARTING THE WEB SERVER
     let app = Router::new()
-        .route("/transcribe", post(handlers::transcribe::transcribe_audio))
+        .route("/transcribe", post(handlers::transcribe::transcribe_audio)
+        .layer(DefaultBodyLimit::max(100 * 1024 * 1024)), )// 100 MB limit for audio uploads;
         .with_state(state);
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));

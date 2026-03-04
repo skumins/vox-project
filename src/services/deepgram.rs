@@ -1,4 +1,4 @@
-  use reqwest::Client;
+use reqwest::Client;
 use serde::{Deserialize, Serialize}; // For transformation JSON
 use std::error::Error;
 
