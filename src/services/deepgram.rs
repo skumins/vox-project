@@ -1,11 +1,6 @@
 use reqwest::Client;
-use serde::{Deserialize, Serialize}; // For transformation JSON
+use serde::{Deserialize}; // For transformation JSON
 use std::error::Error;
-
-#[derive(Debug, Deserialize)]
-struct Alternative {
-    transcript: String,
-}
 
 #[derive(Debug, Deserialize)]
 struct DeepgramResponse {
@@ -20,6 +15,11 @@ struct DeepgramResults {
 #[derive(Debug, Deserialize)]
 struct Channel {
     alternatives: Vec<Alternative>,
+}
+
+#[derive(Debug, Deserialize)]
+struct Alternative {
+    transcript: String,
 }
 
 // Main Structure Service
@@ -38,20 +38,21 @@ impl DeepgramService {
     }
 
     // Accept audio bytes and return text
-    // Box<dyn Error> it is "any error"
-    pub async fn transcribe(&self, audio_data: Vec<u8>) -> Result<String, Box<dyn Error>> {
-        let url = "https://api.deepgram.com/v1/listen?model=nova-3&smart_format=true";
+    pub async fn transcribe(&self, audio_data: Vec<u8>, content_type: &str) -> Result<String, Box<dyn Error>> {
+        let url = "https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&punctuate=true&detect_language=true";
 
         let response = self.client
             .post(url)
             .header("Authorization", format!("Token {}", self.api_key))
-            .header("Content-Type", "audio/wav")
+            .header("Content-Type", content_type)
             .body(audio_data)
             .send()
             .await?;
 
         if !response.status().is_success() {
-            return Err(format!("Deepgram API error: {}", response.status()).into());
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            return Err(format!("Deepgram {}: {}", status, body).into());
         }
 
         let parsed: DeepgramResponse = response.json().await?;

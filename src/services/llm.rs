@@ -1,8 +1,7 @@
 use reqwest::Client;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::json;
-use std::error::Error;
-use std::time::Duration;
+use std::{error::Error, time::Duration};
 
 #[derive(Debug, Deserialize)]
 struct LlmResponse {
@@ -30,30 +29,25 @@ impl OpenRouterService {
     pub fn new(api_key: String, model: String) -> Self {
         // Build client with timeout because free LLM models can be slow
         let client = Client::builder()
-            .timeout(Duration::from_secs(90))
+            .timeout(Duration::from_secs(100))
             .build()
             .expect("Failed to build HTTP client");
 
-        Self {
-            client,
-            api_key,
-            model,
-        }
+        Self { client, api_key, model, }
     }
 
     pub async fn summarize(&self, text: String, system_prompt: String) -> Result<String, Box<dyn Error>> {
-        let url = "https://openrouter.ai/api/v1/chat/completions";
+        let combiend = format!("{}\n\n---\n\n{}", system_prompt, text);
 
         let body = json!({
             "model": self.model,
             "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": text}
+                {"role": "user", "content": combiend},
             ]
         });
 
         let response = self.client
-            .post(url)
+            .post("https://openrouter.ai/api/v1/chat/completions")
             .header("Authorization", format!("Bearer {}", self.api_key))
             .header("Content-Type", "application/json")
             // OpenRouter recommends setting your site url
@@ -66,7 +60,7 @@ impl OpenRouterService {
         if !response.status().is_success() {
             // For debugging
             let status = response.status();
-            let error_text = response.text().await?;
+            let error_text = response.text().await.unwrap_or_default();
             return Err(format!("LLM API Error {}: {} ", status, error_text).into());
         }
 
@@ -75,7 +69,7 @@ impl OpenRouterService {
         let content = parsed.choices
             .first()
             .map(|c| c.message.content.clone())
-            .unwrap_or("No summary generated".to_string());
+            .unwrap_or_else(|| "No response from model".to_string());
 
         Ok(content)
     }

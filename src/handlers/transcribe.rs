@@ -1,13 +1,10 @@
   use axum::{
-    extract::{State},
+    extract::{Multipart, State},
     Json,
     response::IntoResponse,
     http::StatusCode,
 };
-use axum::extract::multipart::Multipart;
-use crate::models::TranscribeResponse;
-use crate::AppState;
-use crate::prompts::lecture_prompt;
+use crate::{models::TranscribeResponse, prompts::lecture_prompt, AppState};
 use uuid::Uuid;
 
 pub async fn transcribe_audio(
@@ -15,12 +12,10 @@ pub async fn transcribe_audio(
     mut multipart: Multipart,
 ) -> impl IntoResponse {
 
-    let mut audio_data = Vec::new();
+    let mut audio_data: Vec<u8> = Vec::new();
 
     while let Ok(Some(field)) = multipart.next_field().await {
-        let field_name = field.name().unwrap_or("").to_string();
-
-        if field_name == "file" {
+        if field.name().unwrap_or("") == "file" {
             match field.bytes().await {
                 Ok(bytes) => {
                     audio_data = bytes.to_vec();
@@ -40,7 +35,7 @@ pub async fn transcribe_audio(
 
     println!("Audio received: {} bytes. Processing...", audio_data.len());
 
-    let raw_text = match state.deepgram.transcribe(audio_data).await {
+    let transcript = match state.deepgram.transcribe(audio_data, "audio/wav").await {
         Ok(text) => {
             println!("Transcription successful: {} characters", text.len());
             text
@@ -51,8 +46,7 @@ pub async fn transcribe_audio(
     };
 
     println!("Sending in LLM...");
-    let prompt = lecture_prompt();
-    let processed_markdown = match state.llm.summarize(raw_text.clone(), prompt).await {
+    let summary = match state.llm.summarize(transcript.clone(), lecture_prompt()).await {
         Ok(text) => {
             println!("LLM processing successful");
             text
@@ -63,18 +57,18 @@ pub async fn transcribe_audio(
     };
 
     // temporary solution for debugging 
-    println!("LLM response for testing:\n{}", processed_markdown);
+    println!("LLM response for testing:\n{}", summary);
 
     let id = Uuid::new_v4().to_string();
 
-    let result = sqlx::query!(
+    match sqlx::query!(
         "INSERT INTO notes (id, raw_text, processed_markdown, created_at) VALUES (?, ?, ?, datetime('now'))",
-        id, raw_text, processed_markdown,
+        id, transcript, summary,
     )
     .execute(&state.db)
-    .await;
-
-    match result {
+    .await
+    
+    {
         Ok(_) => {
             println!("Saved to Database with ID: {}", id);
             (StatusCode::OK, Json(TranscribeResponse {
