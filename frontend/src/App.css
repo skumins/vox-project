@@ -1,0 +1,123 @@
+:root {
+    --bg: #111;
+    --surface: #1a1a1a;
+    --border: #2a2a2a;
+    --text: #0e0e0e;
+    --muted: #555;
+    --blue: #397eed;
+    --red: #ef4444;
+    --green: #22c55e;
+}
+
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: monospace;
+}
+
+.app {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 40px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+h1 {
+    font-size: 1.2rem;
+    letter-spacing: 0.1em;
+}
+
+.status {
+    font-size: 0.7rem;
+    padding: 3px 8px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--muted);
+}
+
+.status-recording {
+    color: var(--red);
+    border-color: var(--red);
+}
+.status-processing {
+    color: var(--blue);
+    border-color: var(--blue);
+}
+.status-error {
+    color: var(--red);
+    border-color: var(--red);
+}
+
+.controls {
+    display: flex;
+    gap: 8px;
+}
+
+button {
+    padding: 8px 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: monospace;
+    font-size: 0.8rem;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: border-color 0.15s;
+}
+
+button:hover:not(:disabled) { border-color: var(--text); }
+button:disabled { opacity: 0.3; cursor: not-allowed; }
+
+.panels {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+@media (max-width: 600px) {
+    .panels { grid-template-columns: 1fr; }
+}
+
+.panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.panel h2 {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+}
+
+textarea {
+    background: transparent;
+    border: none;
+    color: var(--text);
+    font-family: monospace;
+    font-size: 0.85rem;
+    line-height: 1.6;
+    resize: none;
+    outline: none;
+    height: 400px;
+    width: 100%;
+}

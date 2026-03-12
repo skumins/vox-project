@@ -15,3 +15,7 @@ notes.db
 notes.db-journal
 .vscode/
 .idea/
+node_modules/
+dist/
+build/
+
