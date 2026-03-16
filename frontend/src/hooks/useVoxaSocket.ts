@@ -10,6 +10,9 @@ export function useVoxaSocket(callbacks: SocketCallbacks) {
     // WebSocket storage
     const wsRef = useRef<WebSocket | null>(null);
 
+    const callbacksRef = useRef(callbacks);
+    callbacksRef.current = callbacks;
+
     // connection
     const connect = useCallback((): Promise<void> => {
         return new Promise((resolve, reject) => {
@@ -17,30 +20,28 @@ export function useVoxaSocket(callbacks: SocketCallbacks) {
             
             ws.onopen = () => {
                 wsRef.current = ws;
-                callbacks.onStatus("Connected", false);
+                callbacksRef.current.onStatus("Connected", false);
                 resolve();
             };
 
-            ws.onerror = () => {
-                reject(new Error("WebSocket connection failed"));
-            };
+            ws.onerror = () => reject(new Error("WebSocket connection failed"));
 
             ws.onclose = () => {
                 wsRef.current = null;
-                callbacks.onStatus("Disconnected", false);
+                callbacksRef.current.onStatus("Disconnected", false);
             };
 
             // Processing incoming messages
             ws.onmessage = (event: MessageEvent<string>) => {
                 const data = event.data;
                 if (data.startsWith("transcript:")) {
-                    callbacks.onTranscript(data.slice("transcript:".length));
+                    callbacksRef.current.onTranscript(data.slice("transcript:".length));
                 } else if (data.startsWith("summary")) {
-                    callbacks.onSummary(data.slice("summary:".length));
+                    callbacksRef.current.onSummary(data.slice("summary:".length));
                 } else if (data.startsWith("status:")) {
-                    callbacks.onStatus(data.slice("status:".length), false);
+                    callbacksRef.current.onStatus(data.slice("status:".length), false);
                 } else if (data.startsWith("error:")) {
-                    callbacks.onStatus(data.slice("error:".length), false);
+                    callbacksRef.current.onStatus(data.slice("error:".length), true);
                 }
             };
         });
