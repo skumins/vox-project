@@ -36,7 +36,7 @@ impl OpenRouterService {
         Self { client, api_key, model, }
     }
 
-    pub async fn summarize(&self, text: String, system_prompt: String) -> Result<String, Box<dyn Error>> {
+    pub async fn summarize(&self, text: String, system_prompt: String) -> Result<String, Box<dyn Error + Send + Sync>> {
         let combiend = format!("{}\n\n---\n\n{}", system_prompt, text);
 
         let body = json!({
