@@ -1,11 +1,10 @@
 use std::net::SocketAddr;
-use std::sync::Arc;
 use axum::{
-    routing::post, 
+    routing::post,
+    routing:: get,
     Router,
     extract::DefaultBodyLimit,
 };
-use tokio::sync::Mutex;
 use sqlx::sqlite::SqlitePool;
 
 mod services;
@@ -30,6 +29,10 @@ pub struct AppState {
 #[tokio::main]
 async fn main() {
     // Initialize to see events in console
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .ok();
+    
     tracing_subscriber::fmt::init();
     dotenvy::dotenv().ok();
 
@@ -47,8 +50,10 @@ async fn main() {
     println!("VOXA backend running...");
 
     let app = Router::new()
+        .route("/ws", get(api::ws::ws_handler))
         .route("/transcribe", post(handlers::transcribe::transcribe_audio)
-        .layer(DefaultBodyLimit::max(100 * 1024 * 1024)), )// 100 MB limit for audio uploads;
+            .layer(DefaultBodyLimit::max(100 * 1024 * 1024)), // 100 MB limit for audio uploads;
+        )
         .with_state(state);
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));

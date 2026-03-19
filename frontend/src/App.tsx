@@ -1,4 +1,4 @@
-import {useState, useCallback } from "react";
+import {useState, useCallback, useEffect } from "react";
 import { useVoxaSocket } from "./hooks/useVoxaSocket";
 import { useRecorder } from "./hooks/useRecorder";
 
@@ -8,10 +8,19 @@ export default function App() {
     const [status, setStatus] = useState<AppStatus>("idle");
     const [statusText, setStatusText] = useState("Ready");
     const [transcript, setTranscript] = useState("");
+    const [interim, setInterim] = useState("");
     const [summary, setSummary] = useState("");
+    const [transcriptLang, setTranscriptLang] = useState("no");
+    const [summaryLang, setSummaryLang] = useState("uk");
 
-    const handleTranscript = useCallback((text: string) => {
-        setTranscript(prev => prev + text + " ");
+    const handleTranscript = useCallback((text: string, isFinal: boolean) => {
+        if (isFinal) {
+            setTranscript(prev => prev + text + " ");
+            setInterim("");
+        } else {
+            setInterim(text);
+        }
+
     }, []);
 
     const handleSummary = useCallback((text: string) => {
@@ -25,7 +34,6 @@ export default function App() {
         if(isError) setStatus("error");
     }, []);
 
-
     const socket = useVoxaSocket({
         onTranscript: handleTranscript,
         onSummary: handleSummary,
@@ -34,15 +42,24 @@ export default function App() {
 
     const recorder = useRecorder(socket.sendAudio);
 
+    useEffect(() => {
+        if (summary !== "") {
+            socket.sendCommand("disconnect");
+        }
+    }, [summary]);
 
     async function handleStart() {
         try {
+            setTranscript("");
+            setInterim("");
+            setSummary("");
             setStatusText("Connecting...");
-            await socket.connect();
+            await socket.connect({ lang: transcriptLang, summaryLang });
             await recorder.start();
             setStatus("recording");
             setStatusText("Recording");
         } catch (err) {
+            setStatus("error");
             setStatusText(err instanceof Error ? err.message : "Unknow error");
         }
     }
@@ -51,7 +68,7 @@ export default function App() {
         recorder.stop();
         socket.sendCommand("stop");
         setStatus("idle");
-        setStatusText("Stopped");
+        setStatusText("Stopped. Press Summarize.");
     }
 
     function handleSummarize() {
@@ -73,6 +90,37 @@ export default function App() {
                 <span className={`status status-${status}`}>{statusText}</span>
             </header>
 
+            <div className="lang-row">
+                <label>
+                    <span>Transcript</span>
+                    <select
+                        value={transcriptLang}
+                        onChange={e => setTranscriptLang(e.target.value)}
+                        disabled={isRecording}
+                    >
+                        <option value="no">Norwegian</option>
+                        <option value="en">English</option>
+                        <option value="uk">Ukrainian</option>
+                        <option value="de">German</option>
+                        <option value="multi">Auto-detect</option>
+                    </select>
+                </label>
+
+                <label>
+                    <span>Summary</span>
+                    <select
+                        value={summaryLang}
+                        onChange={e => setSummaryLang(e.target.value)}
+                        disabled={isProcessing}
+                    >
+                        <option value="en">English</option>
+                        <option value="de">German</option>
+                        <option value="no">Norwegian</option>
+                        <option value="uk">Ukrainian</option>
+                    </select>
+                </label>
+            </div>
+
             <div className="controls">
                 <button onClick={handleStart} disabled={isRecording || isProcessing}>
                     Start
@@ -91,9 +139,8 @@ export default function App() {
                 <section className="panel">
                     <h2>Transcript</h2>
                     {}
-                    <textarea value={transcript} readOnly placeholder="Transcript will apper here..." />
+                    <textarea value={transcript + (interim ? `[${interim}]` : "")} readOnly placeholder="Transcript will apper here..." />
                 </section>
-
                 <section className="panel">
                     <h2>Summary</h2>
                     <textarea value={summary} readOnly placeholder="Summary will apper here..." />

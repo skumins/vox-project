@@ -1,7 +1,7 @@
 import { useRef, useCallback } from "react";
 
 interface SocketCallbacks {
-    onTranscript: (text: string) => void;
+    onTranscript: (text: string, ifFinal: boolean) => void;
     onSummary: (text: string) => void;
     onStatus: (msg: string, isError: boolean) => void;
 }
@@ -14,12 +14,13 @@ export function useVoxaSocket(callbacks: SocketCallbacks) {
     callbacksRef.current = callbacks;
 
     // connection
-    const connect = useCallback((): Promise<void> => {
+    const connect = useCallback((config: { lang: string; summaryLang: string }): Promise<void> => {
         return new Promise((resolve, reject) => {
             const ws = new WebSocket("ws://localhost:5173/ws");
             
             ws.onopen = () => {
                 wsRef.current = ws;
+                ws.send(`config:${JSON.stringify({ lang: config.lang, summary_lang: config.summaryLang })}`);
                 callbacksRef.current.onStatus("Connected", false);
                 resolve();
             };
@@ -34,8 +35,16 @@ export function useVoxaSocket(callbacks: SocketCallbacks) {
             // Processing incoming messages
             ws.onmessage = (event: MessageEvent<string>) => {
                 const data = event.data;
+
                 if (data.startsWith("transcript:")) {
-                    callbacksRef.current.onTranscript(data.slice("transcript:".length));
+                    const payload = data.slice("transcript:".length);
+                    if (payload.startsWith("final:")) {
+                        const text = payload.slice("final:".length);
+                        callbacksRef.current.onTranscript(text, true);
+                    } else if (payload.startsWith("interim:")) {
+                        const text = payload.slice("interim:".length);
+                        callbacksRef.current.onTranscript(text, false);
+                    }
                 } else if (data.startsWith("summary")) {
                     callbacksRef.current.onSummary(data.slice("summary:".length));
                 } else if (data.startsWith("status:")) {
@@ -55,7 +64,7 @@ export function useVoxaSocket(callbacks: SocketCallbacks) {
         }
     }, []);
 
-    const sendCommand = useCallback((cmd: "summarize" | "stop") => {
+    const sendCommand = useCallback((cmd: "summarize" | "stop" | "disconnect") => {
         wsRef.current?.send(cmd);
     }, []);
 

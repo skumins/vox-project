@@ -25,7 +25,7 @@ export function useRecorder(onChunk: (buffer: ArrayBuffer) => void) {
             }
         };
         
-        recorder.start(250);
+        recorder.start(1000);
         recorderRef.current = recorder;
 
     }, [onChunk]);

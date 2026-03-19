@@ -10,6 +10,7 @@ export default defineConfig({
             "/ws": {
                 target: "ws://localhost:3000",
                 ws: true,
+                rewriteWsOrigin: true,  
             },
             "/transcribe": {
                 target: "http://localhost:3000",

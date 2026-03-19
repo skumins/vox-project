@@ -2,8 +2,8 @@
     --bg: #111;
     --surface: #1a1a1a;
     --border: #2a2a2a;
-    --text: #0e0e0e;
-    --muted: #555;
+    --text: #eeeeee;
+    --muted: #bbbbbb;
     --blue: #397eed;
     --red: #ef4444;
     --green: #22c55e;
@@ -86,6 +86,35 @@ button:disabled { opacity: 0.3; cursor: not-allowed; }
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 16px;
+}
+
+.lang-row {
+    display: flex;
+    gap: 20px;
+}
+
+.lang-row label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.75rem;
+    color: var(--muted);
+}
+
+.lang-row select {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: monospace;
+    font-size: 0.75rem;
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.lang-row select:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
 }
 
 @media (max-width: 600px) {

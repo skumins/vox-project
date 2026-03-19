@@ -19,27 +19,36 @@ impl DeepgramService {
 
     // Start a streaming session with Deepgram. 
     // Returns 2 channels; audio_tx - send audio bytes here,   text_rx - read transcript from here.
-    pub async fn start_stream( &self ) -> Result<(mpsc::Sender<Vec<u8>>, mpsc::Receiver<String>), String> {
-        let url = format!(
+    pub async fn start_stream( &self, language: &str ) -> Result<(mpsc::Sender<Vec<u8>>, mpsc::Receiver<String>), String> {
+    let url = if language == "multi" { 
+        "wss://api.deepgram.com/v1/listen\
+        ?model=nova-2\
+        &interim_results=true\
+        &punctuate=true"
+            .to_string()
+    } else {
+        format!(
             "wss://api.deepgram.com/v1/listen\
-             ?encoding=linear16\
-             &sample_rate=16000\
-             &interim_results=true\
-             &punctuate=true\
-             &keepalive=true\
-             &model=nova-2\
-             &detect_language=true"
-        );
+            ?model=nova-2\
+            &language={}\
+            &interim_results=true\
+            &punctuate=true",
+            language
+        )
+    };
 
         let request = {
             use tokio_tungstenite::tungstenite::client::IntoClientRequest;
             let mut req = url.into_client_request().map_err(|e| e.to_string())?;
-            req.headers_mut().insert("Authorization", format!("Token {}", self.api_key).parse().unwrap(),);
+            req.headers_mut().insert("Authorization", format!("Token {}", self.api_key)
+                .parse()
+                .map_err(|e| format!("Invalid API key format: {}", e))?,
+            );
             req
         };
 
         // Connecting to Deepgram WebSocket; ws_stream is a two-way connection
-        let (ws_stream, _) = connect_async(request).await.map_err(|e| format!("Deepgram WS connect failed: {}", e))?;
+        let (ws_stream, _) = connect_async(request).await.map_err(|e| format!("Deepgram WS connect failed: {:?}", e))?;
 
         // Divide it into two parts: sink - for sending (write end);  stream - for receiving (read end)
         let (mut sink, mut stream) = ws_stream.split();
@@ -63,17 +72,23 @@ impl DeepgramService {
 
         // Thread 2: Getting transcript from Deepgram
         tokio::spawn(async move {
-            while let Some(Ok(msg)) = stream.next().await {
-                if let Message::Text(text) = msg {
-                    if let Some(transcript) = parse_deepgram_response(&text) {
-                        if !transcript.is_empty() {
+            while let Some(result) = stream.next().await {
+                match result {
+                    Ok(Message::Text(text)) => {
+                        if let Some(transcript) = parse_deepgram_response(&text) {
                             if text_tx.send(transcript).await.is_err() {
                                 break;
                             }
                         }
                     }
+                    Ok(_) => {}
+                    Err(e) => {
+                        eprintln!("Deepgram stream error: {}", e);
+                        break;
+                    }
                 }
             }
+            eprintln!("Deepgram stream closed");
         });
         
         Ok((audio_tx, text_rx))
@@ -140,10 +155,6 @@ fn parse_deepgram_response(json_text: &str) -> Option<String> {
         return None;
     }
 
-    if result.is_final != Some(true) {
-        return None;
-    }
-
     let transcript = result.channel?
         .alternatives
         .into_iter()
@@ -151,9 +162,12 @@ fn parse_deepgram_response(json_text: &str) -> Option<String> {
         .transcript;
 
     if transcript.trim().is_empty() {
-        None
-    } else {
-        Some(transcript)
+        return None;
     }
 
+    Some(if result.is_final == Some(true) {
+        format!("final:{}", transcript)
+    } else {
+        format!("interim:{}", transcript)
+    })
 }

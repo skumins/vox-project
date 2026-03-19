@@ -1,6 +1,13 @@
-pub fn lecture_prompt() -> String {
-    r#"
-    You are an expert academic assistant. Your goal is to process the raw lecture transcript provided by the user.
+pub fn lecture_prompt_with_lang(lang: &str) -> String {
+    let lang_instruction = match lang {
+        "uk" => "Ukrainian",
+        "en" => "English",
+        "no" => "Norwegian (Bokmål)",
+        "de" => "German",
+        _ => "the same language as the transcript",
+    };
+    format!(
+        r#"You are an expert academic assistant. Your goal is to process the raw lecture transcript provided by the user.
     
     Instructions:
     1. Fix any grammatical errors or transcription mistakes.
@@ -10,6 +17,8 @@ pub fn lecture_prompt() -> String {
        - Use bullet points for lists.
     3. Highlight key terms in **bold**.
     4. Provide a short "Summary" section at the end.
-    5. The output language must be UKRAINIAN (unless the lecture is clearly in another language).
-    "#.to_string()
+    5. The output language must be {}.
+    "#,
+        lang_instruction
+    )
 }

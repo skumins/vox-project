@@ -4,7 +4,7 @@
     response::IntoResponse,
     http::StatusCode,
 };
-use crate::{models::TranscribeResponse, prompts::lecture_prompt, AppState};
+use crate::{models::TranscribeResponse, prompts::lecture_prompt_with_lang, AppState};
 use uuid::Uuid;
 
 pub async fn transcribe_audio(
@@ -13,19 +13,27 @@ pub async fn transcribe_audio(
 ) -> impl IntoResponse {
 
     let mut audio_data: Vec<u8> = Vec::new();
+    let mut lang = String::from("en");
 
     while let Ok(Some(field)) = multipart.next_field().await {
-        if field.name().unwrap_or("") == "file" {
-            match field.bytes().await {
-                Ok(bytes) => {
-                    audio_data = bytes.to_vec();
-                    println!("File received: {} bytes", audio_data.len());
-                }
-                Err(e) => {
-                    return (StatusCode::BAD_REQUEST, format!("Error reading file: {}", e)).into_response();
+        match field.name().unwrap_or("") {
+            "file" => {
+                match field.bytes().await {
+                    Ok(bytes) => {
+                        audio_data = bytes.to_vec();
+                        println!("File received: {} bytes", audio_data.len());
+                    }
+                    Err(e) => {
+                        return (StatusCode::BAD_REQUEST, format!("Error reading file: {}", e)).into_response();
+                    }
                 }
             }
-            break; // Exit because file found
+            "lang" => {
+                if let Ok(value) = field.text().await {
+                    lang = value;
+                }
+            }
+            _ => {}
         }
     }
 
@@ -46,7 +54,10 @@ pub async fn transcribe_audio(
     };
 
     println!("Sending in LLM...");
-    let summary = match state.llm.summarize(transcript.clone(), lecture_prompt()).await {
+    let summary = match state.llm.summarize(
+        transcript.clone(), 
+        lecture_prompt_with_lang(&lang),
+    ).await {
         Ok(text) => {
             println!("LLM processing successful");
             text

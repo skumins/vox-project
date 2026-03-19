@@ -2,7 +2,7 @@ use axum::{
     extract::{ws::{WebSocket, Message, WebSocketUpgrade}, State},
     response::IntoResponse,
 };
-use crate::{AppState, prompts::lecture_prompt};
+use crate::{AppState, prompts::lecture_prompt_with_lang};
 
 
 pub async fn ws_handler(
@@ -16,60 +16,119 @@ pub async fn ws_handler(
 async fn handle_socket(mut socket: WebSocket, state: AppState) {
     println!("WebSocket connected");
 
+    let (transcript_lang, summary_lang) = match socket.recv().await {
+        Some(Ok(Message::Text(msg))) if msg.starts_with("config") => {
+            #[derive(serde::Deserialize)]
+            struct SessionConfig {
+                lang: String,
+                summary_lang: String,
+            }
+            let json = &msg["config:".len()..];
+            match serde_json::from_str::<SessionConfig>(json) {
+                Ok(cfg) => (cfg.lang, cfg.summary_lang),
+                Err(_) => ("en".to_string(), "en".to_string()),
+            }
+        }
+        _ => ("en".to_string(), "en".to_string()),
+    };
+
+    println!("Session: transcript={}, summary={}", transcript_lang, summary_lang);
     // We start a Deepgram streaming session and get two channels
-    let (audio_tx, mut transcript_rx) = match state.deepgram.start_stream().await {
-        Ok(channels) => channels,
+    let (audio_tx, mut transcript_rx) = match state.deepgram.start_stream(&transcript_lang).await {
+        Ok(channels) => { println!("Deepgram stream started OK"); channels}
         Err(e) => {
+            println!("Deepgram stream FAILED: {}", e);
             let _ = socket.send(Message::Text(format!("error:{}", e).into())).await;
             return;
         }
     };
 
     let mut full_transcript= String::new();
+    let mut llm_rx: Option<tokio::sync::oneshot::Receiver<String>> = None;
     
     // In parallel, we read transcripts from Deepgram and send them to the client
     loop {
         tokio::select! {
             // Branch 1: Deepgram sent a text
             Some(transcript) = transcript_rx.recv() => {
-                full_transcript.push_str(&transcript);
-                full_transcript.push(' ');
+                println!("Got: '{}'", transcript);
+                full_transcript.push_str(
+                    if transcript.starts_with("final:") {
+                        &transcript["final:".len()..]
+                    } else { "" }
+                );
+                if transcript.starts_with("final:"){
+                    full_transcript.push(' ');
+                }
                 let _ = socket.send(Message::Text(format!("transcript:{}", transcript).into())).await;
+            }
+
+            Ok(result) = async {
+                match &mut llm_rx {
+                    Some(rx) => rx.await,
+                    None => std::future::pending().await,
+                }
+            }, if llm_rx.is_some() => {
+                llm_rx = None;
+                let _ = socket.send(Message::Text(result.into())).await;
             }
 
             // Branch 2: Browser sent audio or command
             Some(Ok(msg)) = socket.recv() => {
                 match msg {
                     Message::Binary(bytes) => {
+                        println!("Audio chunk: {} bytes", bytes.len());
                         if audio_tx.send(bytes.to_vec()).await.is_err() {
+                            println!("audio_tx channel closed");
                             break;
                         }
                     }
-                    Message::Text(cmd) => match cmd.as_str() {
-                        "sumarize" => {
-                            if full_transcript.trim().is_empty() {
-                                let _ = socket.send(Message::Text("error:No transcript yet". into())).await;
-                                continue;
-                            }
+                    Message::Text(cmd) => {
+                        println!("Command received: {}", cmd);
+                        match cmd.as_str() {
+                            "summarize" => {
+                                if full_transcript.trim().is_empty() {
+                                    let _ = socket.send(Message::Text("error:No transcript yet".into())).await;
+                                    continue;
+                                }
 
-                            let _ = socket.send(Message::Text("status:Processing...".into())).await;
+                                if llm_rx.is_some() {
+                                    continue;
+                                }
+
+                                let _ = socket.send(Message::Text("status:Processing...".into())).await;
     
-                            match state.llm.summarize(full_transcript.clone(), lecture_prompt()).await {
-                                Ok(s) => {
-                                    let _ = socket.send(Message::Text(format!("summary:{}", s).into())).await;
-                                }
-                                Err(e) => {
-                                    let _ = socket.send(Message::Text(format!("error:{}", e).into())).await;
-                                }
+                                let text = full_transcript.clone();
+                                let prompt = crate::prompts::lecture_prompt_with_lang(&summary_lang);
+                                let llm =state.llm.clone();
+
+                                let (tx, rx) = tokio::sync::oneshot::channel::<String>();
+                                llm_rx = Some(rx);
+
+                                tokio::spawn(async move {
+                                    let result = match llm.summarize(text, prompt).await {
+                                        Ok(s) => format!("summary:{}", s),
+                                        Err(e) => format!("error:LLM: {}", e),
+                                    };
+                                    let _ = tx.send(result);
+                                });
                             }
+                            "stop" => {
+                                println!("Recording stopped, keeping connection for summarize");
+                                let _ = socket.send(Message::Text("status:Stopped".into())).await;
+                            }
+                            "disconnect" => break,
+                            _ => {}
                         }
-                        "stop" => break, _ => {}
                     },
-                    Message::Close(_) => break, _ => {}
+                    Message::Close(_) => { println!("Client closed connection"); break; } _ => {}
                 }
             }
-            else => break,
+            else => {
+                println!("select! else branch — both channels closed");
+                break;
+            }
         }
     }
-    println!("Client disconnected");
+    println!("WebSocket disconnected");
 }
