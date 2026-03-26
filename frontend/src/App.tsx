@@ -1,6 +1,6 @@
 import {useState, useCallback, useEffect } from "react";
 import { useVoxaSocket } from "./hooks/useVoxaSocket";
-import { useRecorder } from "./hooks/useRecorder";
+import { useVAD } from "./hooks/useVAD";
 
 type AppStatus = "idle" | "recording" | "processing" | "error";
 
@@ -40,7 +40,7 @@ export default function App() {
         onStatus: handleStatus,
     });
 
-    const recorder = useRecorder(socket.sendAudio);
+    const { start, stop, isSpeaking, loading } = useVAD(socket.sendAudio);
 
     useEffect(() => {
         if (summary !== "") {
@@ -55,7 +55,7 @@ export default function App() {
             setSummary("");
             setStatusText("Connecting...");
             await socket.connect({ lang: transcriptLang, summaryLang });
-            await recorder.start();
+            await start();
             setStatus("recording");
             setStatusText("Recording");
         } catch (err) {
@@ -65,7 +65,7 @@ export default function App() {
     }
 
     function handleStop() {
-        recorder.stop();
+        stop();
         socket.sendCommand("stop");
         setStatus("idle");
         setStatusText("Stopped. Press Summarize.");
@@ -80,6 +80,9 @@ export default function App() {
     const isRecording = status === "recording";
     const isProcessing = status === "processing";
     const canSummarize = transcript.length > 0 && !isRecording && !isProcessing;
+    const dynamicStatus = isRecording
+    ? (isSpeaking ? "Listening..." : "Waiting for speech...")
+    : statusText;
 
 
     return (
@@ -87,7 +90,7 @@ export default function App() {
             <header>
                 <h1>VOXA</h1>
                 {}
-                <span className={`status status-${status}`}>{statusText}</span>
+                <span className={`status status-${status}`}>{dynamicStatus}</span>
             </header>
 
             <div className="lang-row">
@@ -122,7 +125,7 @@ export default function App() {
             </div>
 
             <div className="controls">
-                <button onClick={handleStart} disabled={isRecording || isProcessing}>
+                <button onClick={handleStart} disabled={isRecording || isProcessing || loading}>
                     Start
                 </button>
 
