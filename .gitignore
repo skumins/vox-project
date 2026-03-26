@@ -18,9 +18,7 @@ notes.db-journal
 node_modules/
 dist/
 build/
-.db-wal
-.db-shm
-.db
+
+*.db
 *.db-shm
 *.db-wal
-*.db-shm
