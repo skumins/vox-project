@@ -21,3 +21,6 @@ build/
 .db-wal
 .db-shm
 .db
+*.db-shm
+*.db-wal
+*.db-shm
