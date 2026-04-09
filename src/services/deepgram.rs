@@ -54,49 +54,48 @@ impl DeepgramService {
         // Connecting to Deepgram WebSocket; ws_stream is a two-way connection
         let (ws_stream, _) = connect_async(request).await.map_err(|e| format!("Deepgram WS connect failed: {:?}", e))?;
 
-        // Divide it into two parts: sink - for sending (write end);  stream - for receiving (read end)
-        use std::sync::Arc;
-        use tokio::sync::Mutex;
-        let (sink, mut stream) = ws_stream.split();
-        let sink = Arc::new(Mutex::new(sink));
-
         // KeepAlive
-        let sink_keepalive = Arc::clone(&sink);
-
-        tokio::spawn(async move {
-            let keepalive_msg = Message::Text(r#"{"type": "KeepAlive"}"#.to_string().into());
-
-            loop {
-                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-                let mut sink = sink_keepalive.lock().await;
-                if sink.send(keepalive_msg.clone()).await.is_err() {
-                    eprintln!("KeepAlive failed - connection likely closed");
-                    break;
-                }
-            }
-        });
-
-        // Buffered audio and transcript channel
+        let (mut sink, mut stream) = ws_stream.split();
         let (audio_tx, mut audio_rx) = mpsc::channel::<Vec<u8>>(100);
         let (text_tx, text_rx) = mpsc::channel::<String>(100);
 
-        // Thread 1: Sending audio to Deepgram
-        let sink_audio = Arc::clone(&sink);
         tokio::spawn(async move {
-            while let Some(audio_bytes) = audio_rx.recv().await {
-                let msg = Message::Binary(audio_bytes.into());
-                let mut sink = sink_audio.lock().await;
-                if sink.send(msg).await.is_err() {
-                    eprintln!("Deepgram connection dropped while sending audio.");
-                    break;
+            let mut keepalive_interval = tokio::time::interval(std::time::Duration::from_secs(8));
+            keepalive_interval.tick().await; // Wait for the first tick
+
+            loop {
+                tokio::select! {
+                    msg = audio_rx.recv() => {
+                        match msg {
+                            Some(audio_bytes) => {
+                                keepalive_interval.reset();
+                                let binary = Message::Binary(audio_bytes.into());
+                                if sink.send(binary).await.is_err() {
+                                    eprintln!("Deepgram: send failed, closing connection");
+                                    break;
+                                }
+                            }
+                            None => {
+                                let close = Message::Text(r#"{"type":"CloseStream"}"#.to_string().into());
+                                let _ = sink.send(close).await;
+                                break;
+                            }
+                        }
+                    }
+
+                    _ = keepalive_interval.tick () => {
+                        let keepalive = Message::Text(r#"{"type":"KeepAlive"}"#.to_string().into());
+                        if sink.send(keepalive).await.is_err() {
+                            eprintln!("Deepgram: keepalive failed, closing connection");
+                            break;
+                        }
+                    }
                 }
             }
-            let mut sink = sink_audio.lock().await;
-            let close_msg = Message::Text(r#"{"type":"CloseStream"}"#.to_string().into());
-            let _ = sink.send(close_msg).await;
         });
 
-        // Thread 2: Getting transcript from Deepgram
+
+        // Getting transcript from Deepgram
         tokio::spawn(async move {
             while let Some(result) = stream.next().await {
                 match result {

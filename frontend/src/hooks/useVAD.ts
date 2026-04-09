@@ -15,16 +15,19 @@ export function useVAD(onSegment: (buffer: ArrayBuffer) => void) {
 
     const vad = useMicVAD({
         startOnLoad: false,
+
+        model: "v5",
+        baseAssetPath: "/",
+
         positiveSpeechThreshold: 0.5,
         negativeSpeechThreshold: 0.3,
-        minSpeechMs: 120,
+        minSpeechMs: 300,
         preSpeechPadMs: 300,
 
         onSpeechEnd: (audio: Float32Array) => {
             console.log(`Speech segment: ${audio.length} samples = ${(audio.length / 16000).toFixed(2)}s`);
             if (!isActiveRef.current) return;
-            const buffer = float32ToInt16(audio);
-            onSegment(buffer);
+            onSegment(float32ToInt16(audio));
         },
 
         onVADMisfire: () => {
@@ -34,10 +37,13 @@ export function useVAD(onSegment: (buffer: ArrayBuffer) => void) {
 
     const start = useCallback(async (): Promise<void> => {
         if (vad.loading) {
-            throw new Error("VAD model is still loading, please wait");
+            throw new Error("VAD model is loading, please wait");
+        }
+        if (vad.errored) {
+            throw new Error("VAD failed to load");
         }
         isActiveRef.current = true;
-        await vad.start();
+        vad.start();
     }, [vad]);
 
     const stop = useCallback(() => {

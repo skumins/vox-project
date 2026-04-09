@@ -39,11 +39,9 @@ export function useVoxaSocket(callbacks: SocketCallbacks) {
                 if (data.startsWith("transcript:")) {
                     const payload = data.slice("transcript:".length);
                     if (payload.startsWith("final:")) {
-                        const text = payload.slice("final:".length);
-                        callbacksRef.current.onTranscript(text, true);
+                        callbacksRef.current.onTranscript(payload.slice("final:".length), true);
                     } else if (payload.startsWith("interim:")) {
-                        const text = payload.slice("interim:".length);
-                        callbacksRef.current.onTranscript(text, false);
+                        callbacksRef.current.onTranscript(payload.slice("interim:".length), false);
                     }
                 } else if (data.startsWith("summary")) {
                     callbacksRef.current.onSummary(data.slice("summary:".length));
