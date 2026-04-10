@@ -15,9 +15,9 @@ export function useVAD(onSegment: (buffer: ArrayBuffer) => void) {
 
     const vad = useMicVAD({
         startOnLoad: false,
-
         model: "v5",
-        baseAssetPath: "/",
+        baseAssetPath: "https://cdn.jsdelivr.net/npm/@ricky0123/vad-web@0.0.30/dist/",
+        onnxWASMBasePath: "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.3/dist/",
 
         positiveSpeechThreshold: 0.5,
         negativeSpeechThreshold: 0.3,
@@ -40,6 +40,7 @@ export function useVAD(onSegment: (buffer: ArrayBuffer) => void) {
             throw new Error("VAD model is loading, please wait");
         }
         if (vad.errored) {
+            console.error("VAD error details:", vad.errored);
             throw new Error("VAD failed to load");
         }
         isActiveRef.current = true;

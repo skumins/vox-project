@@ -1,16 +1,11 @@
 import * as ort from "onnxruntime-web";
-ort.env.wasm.numThreads = 1;
-ort.env.wasm.wasmPaths = "/";
+ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.3/dist/";
 
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./App.css";
 import App from "./App";
 
-const rootElement = document.getElementById("root");
-
-createRoot(rootElement!).render(
-    <StrictMode>
-        <App />
-    </StrictMode>
+createRoot(document.getElementById("root")!).render(
+    <App />
 );
