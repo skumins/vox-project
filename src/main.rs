@@ -11,8 +11,6 @@ mod services;
 mod handlers;
 mod models;
 mod prompts;
-mod stt;
-mod audio_capture;
 mod config;
 mod api;
 
@@ -47,7 +45,7 @@ async fn main() {
         llm: OpenRouterService::new(config.openrouter_key.clone(), config.model.clone()),
     };
     
-    println!("VOXA backend running...");
+    tracing::info!("VOXA backend running...");
 
     let app = Router::new()
         .route("/ws", get(api::ws::ws_handler))
@@ -57,7 +55,7 @@ async fn main() {
         .with_state(state);
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
-    println!("Server listening at http://{}", addr);
+    tracing::info!("Server listening at http://{}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();

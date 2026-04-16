@@ -21,7 +21,7 @@ pub async fn transcribe_audio(
                 match field.bytes().await {
                     Ok(bytes) => {
                         audio_data = bytes.to_vec();
-                        println!("File received: {} bytes", audio_data.len());
+                        tracing::debug!("File received: {} bytes", audio_data.len());
                     }
                     Err(e) => {
                         return (StatusCode::BAD_REQUEST, format!("Error reading file: {}", e)).into_response();
@@ -41,11 +41,11 @@ pub async fn transcribe_audio(
         return (StatusCode::BAD_REQUEST, "No audio file uploaded. Make sure the field is named 'file'.".to_string()).into_response();
     }
 
-    println!("Audio received: {} bytes. Processing...", audio_data.len());
+    tracing::info!("Audio received: {} bytes", audio_data.len());
 
     let transcript = match state.deepgram.transcribe(audio_data, "audio/wav").await {
         Ok(text) => {
-            println!("Transcription successful: {} characters", text.len());
+            tracing::info!("Transcription done: {} chars", text.len());
             text
         }
         Err(e) => {
@@ -53,22 +53,19 @@ pub async fn transcribe_audio(
         }
     };
 
-    println!("Sending in LLM...");
+    tracing::info!("Sending transcript to LLM");
     let summary = match state.llm.summarize(
         transcript.clone(), 
         lecture_prompt_with_lang(&lang),
     ).await {
         Ok(text) => {
-            println!("LLM processing successful");
+            tracing::info!("LLM processing done");
             text
         }
         Err(e) => {
             return (StatusCode::INTERNAL_SERVER_ERROR, format!("LLM Error: {}", e)).into_response();
     }
     };
-
-    // temporary solution for debugging 
-    println!("LLM response for testing:\n{}", summary);
 
     let id = Uuid::new_v4().to_string();
 
@@ -81,14 +78,14 @@ pub async fn transcribe_audio(
     
     {
         Ok(_) => {
-            println!("Saved to Database with ID: {}", id);
+            tracing::info!("Note saved, ID = {}", id);
             (StatusCode::OK, Json(TranscribeResponse {
                 id,
                 status: "success".to_string(),
             })).into_response()
         }
         Err(e) => {
-            eprintln!("Database error: {}", e);
+            tracing::error!("Database error: {}", e);
             (StatusCode::INTERNAL_SERVER_ERROR, format!("Save error in Database: {}", e), ).into_response()
         }
     }

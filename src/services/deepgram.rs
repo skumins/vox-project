@@ -71,7 +71,7 @@ impl DeepgramService {
                                 keepalive_interval.reset();
                                 let binary = Message::Binary(audio_bytes.into());
                                 if sink.send(binary).await.is_err() {
-                                    eprintln!("Deepgram: send failed, closing connection");
+                                    tracing::error!("Deepgram: send failed, closing connection");
                                     break;
                                 }
                             }
@@ -86,7 +86,7 @@ impl DeepgramService {
                     _ = keepalive_interval.tick () => {
                         let keepalive = Message::Text(r#"{"type":"KeepAlive"}"#.to_string().into());
                         if sink.send(keepalive).await.is_err() {
-                            eprintln!("Deepgram: keepalive failed, closing connection");
+                            tracing::error!("Deepgram: keepalive failed");
                             break;
                         }
                     }
@@ -108,12 +108,12 @@ impl DeepgramService {
                     }
                     Ok(_) => {}
                     Err(e) => {
-                        eprintln!("Deepgram stream error: {}", e);
+                        tracing::error!("Deepgram stream error: {}", e);
                         break;
                     }
                 }
             }
-            eprintln!("Deepgram stream closed");
+            tracing::error!("Deepgram stream closed");
         });
         
         Ok((audio_tx, text_rx))

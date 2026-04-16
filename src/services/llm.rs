@@ -37,12 +37,12 @@ impl OpenRouterService {
     }
 
     pub async fn summarize(&self, text: String, system_prompt: String) -> Result<String, Box<dyn Error + Send + Sync>> {
-        let combiend = format!("{}\n\n---\n\n{}", system_prompt, text);
+        let combined = format!("{}\n\n---\n\n{}", system_prompt, text);
 
         let body = json!({
             "model": self.model,
             "messages": [
-                {"role": "user", "content": combiend},
+                {"role": "user", "content": combined},
             ]
         });
 

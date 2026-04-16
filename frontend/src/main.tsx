@@ -1,11 +1,9 @@
 import * as ort from "onnxruntime-web";
-ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.3/dist/";
+ort.env.wasm.wasmPaths =
+  "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.3/dist/";
 
-import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./App.css";
 import App from "./App";
 
-createRoot(document.getElementById("root")!).render(
-    <App />
-);
+createRoot(document.getElementById("root")!).render(<App />);

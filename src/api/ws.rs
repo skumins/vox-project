@@ -2,7 +2,7 @@ use axum::{
     extract::{ws::{WebSocket, Message, WebSocketUpgrade}, State},
     response::IntoResponse,
 };
-use crate::{AppState, prompts::lecture_prompt_with_lang};
+use crate::AppState;
 
 
 pub async fn ws_handler(
@@ -14,7 +14,7 @@ pub async fn ws_handler(
 }
 
 async fn handle_socket(mut socket: WebSocket, state: AppState) {
-    println!("WebSocket connected");
+    tracing::info!("WebSocket connected");
 
     let (transcript_lang, summary_lang) = match socket.recv().await {
         Some(Ok(Message::Text(msg))) if msg.starts_with("config") => {
@@ -32,12 +32,12 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
         _ => ("en".to_string(), "en".to_string()),
     };
 
-    println!("Session: transcript={}, summary={}", transcript_lang, summary_lang);
+    tracing::info!(transcript = %transcript_lang, summary = %summary_lang, "Session config received");
     // We start a Deepgram streaming session and get two channels
     let (audio_tx, mut transcript_rx) = match state.deepgram.start_stream(&transcript_lang).await {
-        Ok(channels) => { println!("Deepgram stream started OK"); channels}
+        Ok(channels) => { tracing::info!("Deepgram stream started"); channels}
         Err(e) => {
-            println!("Deepgram stream FAILED: {}", e);
+            tracing::error!("Deepgram stream failed: {}", e);
             let _ = socket.send(Message::Text(format!("error:{}", e).into())).await;
             return;
         }
@@ -51,7 +51,7 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
         tokio::select! {
             // Branch 1: Deepgram sent a text
             Some(transcript) = transcript_rx.recv() => {
-                println!("Got: '{}'", transcript);
+                tracing::debug!("Transcript received: '{}'", transcript);
                 full_transcript.push_str(
                     if transcript.starts_with("final:") {
                         &transcript["final:".len()..]
@@ -77,14 +77,14 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
             Some(Ok(msg)) = socket.recv() => {
                 match msg {
                     Message::Binary(bytes) => {
-                        println!("Audio chunk: {} bytes", bytes.len());
+                        tracing::debug!("Audio chunk: {} bytes", bytes.len());
                         if audio_tx.send(bytes.to_vec()).await.is_err() {
-                            println!("audio_tx channel closed");
+                            tracing::warn!("Audio channel closed");
                             break;
                         }
                     }
                     Message::Text(cmd) => {
-                        println!("Command received: {}", cmd);
+                        tracing::info!("Command: {}", cmd);
                         match cmd.as_str() {
                             "summarize" => {
                                 if full_transcript.trim().is_empty() {
@@ -114,21 +114,21 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                                 });
                             }
                             "stop" => {
-                                println!("Recording stopped, keeping connection for summarize");
+                                tracing::info!("Recording stopped, connection kept for summarize");
                                 let _ = socket.send(Message::Text("status:Stopped".into())).await;
                             }
                             "disconnect" => break,
                             _ => {}
                         }
                     },
-                    Message::Close(_) => { println!("Client closed connection"); break; } _ => {}
+                    Message::Close(_) => { tracing::info!("Client closed connection"); break; } _ => {}
                 }
             }
             else => {
-                println!("select! else branch — both channels closed");
+                tracing::debug!("All channels closed, exiting loop");
                 break;
             }
         }
     }
-    println!("WebSocket disconnected");
+    tracing::info!("WebSocket disconnected");
 }
