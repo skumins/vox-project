@@ -1,5 +1,4 @@
 use std::env;
-
 #[derive(Debug, Clone)]
 
 pub struct Config {
@@ -7,6 +6,7 @@ pub struct Config {
     pub deepgram_key: String,
     pub openrouter_key: String,
     pub model: String,
+    pub encryption_key: String,
 }
 
 impl Config {
@@ -15,12 +15,14 @@ impl Config {
         let deepgram_key = env::var("DEEPGRAM_API_KEY").map_err(|_| "DEEPGRAM_API_KEY not found in .env")?;
         let openrouter_key = env::var("OPENROUTER_API_KEY").map_err(|_| "OPENROUTER_API_KEY not found in .env")?;
         let model = env::var("OPENROUTER_MODEL").unwrap_or_else(|_| "openrouter/free".to_string());
+        let encryption_key = env::var("ENCRYPTION_KEY").map_err(|_| "ENCRYPTION_KEY not found in .env")?;
 
         Ok(Self {
             database_url,
             deepgram_key,
             openrouter_key,
             model,
+            encryption_key,
         })
     }
 }

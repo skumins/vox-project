@@ -67,10 +67,10 @@ pub async fn transcribe_audio(
     }
     };
 
-    let id = Uuid::new_v4().to_string();
+    let id = Uuid::new_v4();
 
     match sqlx::query!(
-        "INSERT INTO notes (id, raw_text, processed_markdown, created_at) VALUES (?, ?, ?, datetime('now'))",
+        "INSERT INTO notes (id, raw_text, processed_markdown) VALUES ($1, $2, $3)",
         id, transcript, summary,
     )
     .execute(&state.db)
@@ -80,7 +80,7 @@ pub async fn transcribe_audio(
         Ok(_) => {
             tracing::info!("Note saved, ID = {}", id);
             (StatusCode::OK, Json(TranscribeResponse {
-                id,
+                id: id.to_string(),
                 status: "success".to_string(),
             })).into_response()
         }

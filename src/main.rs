@@ -1,11 +1,10 @@
 use std::net::SocketAddr;
 use axum::{
-    routing::post,
-    routing:: get,
+    routing::{get, post},
     Router,
     extract::DefaultBodyLimit,
 };
-use sqlx::sqlite::SqlitePool;
+use sqlx::postgres::PgPool;
 
 mod services;
 mod handlers;
@@ -19,9 +18,10 @@ use config::Config;
 
 #[derive(Clone)]
 pub struct AppState {
-    pub db: SqlitePool,
+    pub db: PgPool,
     pub deepgram: DeepgramService,
     pub llm: OpenRouterService,
+    pub encryption_key: String,
 }
 
 #[tokio::main]
@@ -36,13 +36,14 @@ async fn main() {
 
     let config = Config::from_env().expect("Error configuring");
 
-    let db_pool = SqlitePool::connect(&config.database_url).await.expect("Failed to connect to database");
+    let db_pool = PgPool::connect(&config.database_url).await.expect("Failed to connect to database");
     sqlx::migrate!("./migrations").run(&db_pool).await.expect("Migration failed");
 
     let state = AppState{
         db: db_pool,
         deepgram: DeepgramService::new(config.deepgram_key.clone()),
         llm: OpenRouterService::new(config.openrouter_key.clone(), config.model.clone()),
+        encryption_key: config.encryption_key.clone(),
     };
     
     tracing::info!("VOXA backend running...");

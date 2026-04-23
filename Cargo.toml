@@ -18,12 +18,15 @@ tracing = "0.1"
 async-trait = "0.1"
 
 # Database
-sqlx = { version = "0.8", features =  ["runtime-tokio", "sqlite", "macros"]}
+sqlx = { version = "0.8", features =  ["runtime-tokio", "postgres", "macros", "uuid", "time"] }
 
+#Security
+aes-gcm = "0.10"
+rand = "0.8"
 
 dotenvy = "0.15"
 reqwest = { version = "0.12", features = ["json", "multipart"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-uuid = { version = "1", features = ["v4"] }
+uuid = { version = "1", features = ["v4", "serde"] }
 thiserror = "1"
