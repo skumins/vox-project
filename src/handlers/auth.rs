@@ -165,7 +165,7 @@ pub async fn google_callback(
         jar.add(session_cookie)
             .remove(remove_state)
             .remove(remove_pkce),
-        Redirect::to("/"),
+        Redirect::to("http://localhost:5173/"),
     ).into_response()
 }
 

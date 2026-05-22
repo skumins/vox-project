@@ -58,7 +58,7 @@ async fn main() {
     let oauth_client = build_oauth_client(&config);
 
     let cookie_key = Key::from(
-        hex::decode(&config.cookie_secret)
+    hex::decode(&config.cookie_secret)
         .expect("COOKIE_SECRET must be valid hex")
         .as_slice()
     );

@@ -1,152 +1,228 @@
 :root {
-    --bg: #111;
-    --surface: #1a1a1a;
-    --border: #2a2a2a;
-    --text: #eeeeee;
-    --muted: #bbbbbb;
-    --blue: #397eed;
-    --red: #ef4444;
-    --green: #22c55e;
+  --bg: #111;
+  --surface: #1a1a1a;
+  --border: #2a2a2a;
+  --text: #eeeeee;
+  --muted: #bbbbbb;
+  --blue: #397eed;
+  --red: #ef4444;
+  --green: #22c55e;
 }
 
-*, *::before, *::after {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
 body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: monospace;
+  background: var(--bg);
+  color: var(--text);
+  font-family: monospace;
 }
 
 .app {
-    max-width: 1000px;
-    margin: 0 auto;
-    padding: 40px 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 24px;
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 40px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
 }
 
 header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 h1 {
-    font-size: 1.2rem;
-    letter-spacing: 0.1em;
+  font-size: 1.2rem;
+  letter-spacing: 0.1em;
 }
 
 .status {
-    font-size: 0.7rem;
-    padding: 3px 8px;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    color: var(--muted);
+  font-size: 0.7rem;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--muted);
 }
 
 .status-recording {
-    color: var(--red);
-    border-color: var(--red);
+  color: var(--red);
+  border-color: var(--red);
 }
 .status-processing {
-    color: var(--blue);
-    border-color: var(--blue);
+  color: var(--blue);
+  border-color: var(--blue);
 }
 .status-error {
-    color: var(--red);
-    border-color: var(--red);
+  color: var(--red);
+  border-color: var(--red);
 }
 
 .controls {
-    display: flex;
-    gap: 8px;
+  display: flex;
+  gap: 8px;
 }
 
 button {
-    padding: 8px 16px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    color: var(--text);
-    font-family: monospace;
-    font-size: 0.8rem;
-    cursor: pointer;
-    border-radius: 4px;
-    transition: border-color 0.15s;
+  padding: 8px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: monospace;
+  font-size: 0.8rem;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: border-color 0.15s;
 }
 
-button:hover:not(:disabled) { border-color: var(--text); }
-button:disabled { opacity: 0.3; cursor: not-allowed; }
+button:hover:not(:disabled) {
+  border-color: var(--text);
+}
+button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
 
 .panels {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
 }
 
 .lang-row {
-    display: flex;
-    gap: 20px;
+  display: flex;
+  gap: 20px;
 }
 
 .lang-row label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 0.75rem;
-    color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.75rem;
+  color: var(--muted);
 }
 
 .lang-row select {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    color: var(--text);
-    font-family: monospace;
-    font-size: 0.75rem;
-    padding: 4px 8px;
-    border-radius: 4px;
-    cursor: pointer;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: monospace;
+  font-size: 0.75rem;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
 }
 
 .lang-row select:disabled {
-    opacity: 0.3;
-    cursor: not-allowed;
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.login-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 40px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.login-card p {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.btn-google {
+  display: inline-block;
+  padding: 10px 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: monospace;
+  font-size: 0.8rem;
+  text-decoration: none;
+  border-radius: 4px;
+  transition: border-color 0.15s;
+  margin-top: 8px;
+}
+
+.btn-google:hover {
+  border-color: var(--text);
+}
+
+.user-info {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.avatar-placeholder {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--blue);
+  color: white;
+  font-size: 0.7rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+.btn-logout {
+  font-size: 0.7rem;
+  padding: 4px 10px;
 }
 
 @media (max-width: 600px) {
-    .panels { grid-template-columns: 1fr; }
+  .panels {
+    grid-template-columns: 1fr;
+  }
 }
 
 .panel {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .panel h2 {
-    font-size: 0.65rem;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    color: var(--muted);
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
 }
 
 textarea {
-    background: transparent;
-    border: none;
-    color: var(--text);
-    font-family: monospace;
-    font-size: 0.85rem;
-    line-height: 1.6;
-    resize: none;
-    outline: none;
-    height: 400px;
-    width: 100%;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-family: monospace;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  resize: none;
+  outline: none;
+  height: 400px;
+  width: 100%;
 }

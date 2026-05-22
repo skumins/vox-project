@@ -1,155 +1,186 @@
-import {useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useVoxaSocket } from "./hooks/useVoxaSocket";
 import { useVAD } from "./hooks/useVAD";
+import { useAuth } from "./hooks/useAuth";
+import { LoginPage } from "./components/LoginPage";
 
 type AppStatus = "idle" | "recording" | "processing" | "error";
 
 export default function App() {
-    const [status, setStatus] = useState<AppStatus>("idle");
-    const [statusText, setStatusText] = useState("Ready");
-    const [transcript, setTranscript] = useState("");
-    const [interim, setInterim] = useState("");
-    const [summary, setSummary] = useState("");
-    const [transcriptLang, setTranscriptLang] = useState("no");
-    const [summaryLang, setSummaryLang] = useState("uk");
+  const { authState, logout } = useAuth();
 
-    const handleTranscript = useCallback((text: string, isFinal: boolean) => {
-        if (isFinal) {
-            setTranscript(prev => prev + text + " ");
-            setInterim("");
-        } else {
-            setInterim(text);
-        }
+  const [status, setStatus] = useState<AppStatus>("idle");
+  const [statusText, setStatusText] = useState("Ready");
+  const [transcript, setTranscript] = useState("");
+  const [interim, setInterim] = useState("");
+  const [summary, setSummary] = useState("");
+  const [transcriptLang, setTranscriptLang] = useState("no");
+  const [summaryLang, setSummaryLang] = useState("uk");
 
-    }, []);
-
-    const handleSummary = useCallback((text: string) => {
-        setSummary(text);
-        setStatus("idle");
-        setStatusText("Done");
-    }, []);
-
-    const handleStatus = useCallback((msg: string, isError: boolean) => {
-        setStatusText(msg);
-        if(isError) setStatus("error");
-    }, []);
-
-    const socket = useVoxaSocket({
-        onTranscript: handleTranscript,
-        onSummary: handleSummary,
-        onStatus: handleStatus,
-    });
-
-    const { start, stop, isSpeaking, loading } = useVAD(socket.sendAudio);
-
-    useEffect(() => {
-        if (summary !== "") {
-            socket.sendCommand("disconnect");
-        }
-    }, [summary]);
-
-    async function handleStart() {
-        try {
-            setTranscript("");
-            setInterim("");
-            setSummary("");
-            setStatusText("Connecting...");
-            await socket.connect({ lang: transcriptLang, summaryLang });
-            await start();
-            setStatus("recording");
-            setStatusText("Recording");
-        } catch (err) {
-            setStatus("error");
-            setStatusText(err instanceof Error ? err.message : "Unknow error");
-        }
+  const handleTranscript = useCallback((text: string, isFinal: boolean) => {
+    if (isFinal) {
+      setTranscript((prev) => prev + text + " ");
+      setInterim("");
+    } else {
+      setInterim(text);
     }
+  }, []);
 
-    function handleStop() {
-        stop();
-        socket.sendCommand("stop");
-        setStatus("idle");
-        setStatusText("Stopped. Press Summarize.");
+  const handleSummary = useCallback((text: string) => {
+    setSummary(text);
+    setStatus("idle");
+    setStatusText("Done");
+  }, []);
+
+  const handleStatus = useCallback((msg: string, isError: boolean) => {
+    setStatusText(msg);
+    if (isError) setStatus("error");
+  }, []);
+
+  const socket = useVoxaSocket({
+    onTranscript: handleTranscript,
+    onSummary: handleSummary,
+    onStatus: handleStatus,
+  });
+
+  const { start, stop, isSpeaking, loading } = useVAD(socket.sendAudio);
+
+  useEffect(() => {
+    if (summary !== "") {
+      socket.sendCommand("disconnect");
     }
+  }, [summary]);
 
-    function handleSummarize() {
-        socket.sendCommand("summarize");
-        setStatus("processing");
-        setStatusText("Processing...");
+  if (authState.status === "loading") {
+    return null;
+  }
+
+  if (authState.status == "unauthenticated") {
+    return <LoginPage />;
+  }
+
+  const user = authState.user;
+
+  async function handleStart() {
+    try {
+      setTranscript("");
+      setInterim("");
+      setSummary("");
+      setStatusText("Connecting...");
+      await socket.connect({ lang: transcriptLang, summaryLang });
+      await start();
+      setStatus("recording");
+      setStatusText("Recording");
+    } catch (err) {
+      setStatus("error");
+      setStatusText(err instanceof Error ? err.message : "Unknow error");
     }
+  }
 
-    const isRecording = status === "recording";
-    const isProcessing = status === "processing";
-    const canSummarize = transcript.length > 0 && !isRecording && !isProcessing;
-    const dynamicStatus = isRecording
-    ? (isSpeaking ? "Listening..." : "Waiting for speech...")
+  function handleStop() {
+    stop();
+    socket.sendCommand("stop");
+    setStatus("idle");
+    setStatusText("Stopped. Press Summarize.");
+  }
+
+  function handleSummarize() {
+    socket.sendCommand("summarize");
+    setStatus("processing");
+    setStatusText("Processing...");
+  }
+
+  const isRecording = status === "recording";
+  const isProcessing = status === "processing";
+  const canSummarize = transcript.length > 0 && !isRecording && !isProcessing;
+  const dynamicStatus = isRecording
+    ? isSpeaking
+      ? "Listening..."
+      : "Waiting for speech..."
     : statusText;
 
-
-    return (
-        <div className="app">
-            <header>
-                <h1>VOXA</h1>
-                {}
-                <span className={`status status-${status}`}>{dynamicStatus}</span>
-            </header>
-
-            <div className="lang-row">
-                <label>
-                    <span>Transcript</span>
-                    <select
-                        value={transcriptLang}
-                        onChange={e => setTranscriptLang(e.target.value)}
-                        disabled={isRecording}
-                    >
-                        <option value="no">Norwegian</option>
-                        <option value="en">English</option>
-                        <option value="uk">Ukrainian</option>
-                        <option value="de">German</option>
-                        <option value="multi">Auto-detect</option>
-                    </select>
-                </label>
-
-                <label>
-                    <span>Summary</span>
-                    <select
-                        value={summaryLang}
-                        onChange={e => setSummaryLang(e.target.value)}
-                        disabled={isProcessing}
-                    >
-                        <option value="en">English</option>
-                        <option value="de">German</option>
-                        <option value="no">Norwegian</option>
-                        <option value="uk">Ukrainian</option>
-                    </select>
-                </label>
-            </div>
-
-            <div className="controls">
-                <button onClick={handleStart} disabled={isRecording || isProcessing || loading}>
-                    Start
-                </button>
-
-                <button onClick={handleStop} disabled={!isRecording}>
-                    Stop
-                </button>
-
-                <button onClick={handleSummarize} disabled={!canSummarize}>
-                    {isProcessing ? "Processing...": "Summarize"}
-                </button>
-            </div>
-
-            <div className="panels">
-                <section className="panel">
-                    <h2>Transcript</h2>
-                    {}
-                    <textarea value={transcript + (interim ? `[${interim}]` : "")} readOnly placeholder="Transcript will apper here..." />
-                </section>
-                <section className="panel">
-                    <h2>Summary</h2>
-                    <textarea value={summary} readOnly placeholder="Summary will apper here..." />
-                </section>
-            </div>
+  return (
+    <div className="app">
+      <header>
+        <h1>VOXA</h1>
+        <span className={`status status-${status}`}>{dynamicStatus}</span>
+        <div className="user-info">
+          <div className="avatar-placeholder">
+            {user.name.charAt(0).toUpperCase()}
+          </div>
+          <button onClick={logout} className="btn-logout">
+            Logout
+          </button>
         </div>
-    );
+      </header>
 
+      <div className="lang-row">
+        <label>
+          <span>Transcript</span>
+          <select
+            value={transcriptLang}
+            onChange={(e) => setTranscriptLang(e.target.value)}
+            disabled={isRecording}
+          >
+            <option value="no">Norwegian</option>
+            <option value="en">English</option>
+            <option value="uk">Ukrainian</option>
+            <option value="de">German</option>
+            <option value="multi">Auto-detect</option>
+          </select>
+        </label>
+
+        <label>
+          <span>Summary</span>
+          <select
+            value={summaryLang}
+            onChange={(e) => setSummaryLang(e.target.value)}
+            disabled={isProcessing}
+          >
+            <option value="en">English</option>
+            <option value="de">German</option>
+            <option value="no">Norwegian</option>
+            <option value="uk">Ukrainian</option>
+          </select>
+        </label>
+      </div>
+
+      <div className="controls">
+        <button
+          onClick={handleStart}
+          disabled={isRecording || isProcessing || loading}
+        >
+          Start
+        </button>
+
+        <button onClick={handleStop} disabled={!isRecording}>
+          Stop
+        </button>
+
+        <button onClick={handleSummarize} disabled={!canSummarize}>
+          {isProcessing ? "Processing..." : "Summarize"}
+        </button>
+      </div>
+
+      <div className="panels">
+        <section className="panel">
+          <h2>Transcript</h2>
+          {}
+          <textarea
+            value={transcript + (interim ? `[${interim}]` : "")}
+            readOnly
+            placeholder="Transcript will apper here..."
+          />
+        </section>
+        <section className="panel">
+          <h2>Summary</h2>
+          <textarea
+            value={summary}
+            readOnly
+            placeholder="Summary will apper here..."
+          />
+        </section>
+      </div>
+    </div>
+  );
 }
