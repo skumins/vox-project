@@ -33,34 +33,31 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
     };
 
     tracing::info!(transcript = %transcript_lang, summary = %summary_lang, "Session config received");
-    // We start a Deepgram streaming session and get two channels
-    let (audio_tx, mut transcript_rx) = match state.deepgram.start_stream(&transcript_lang).await {
-        Ok(channels) => { tracing::info!("Deepgram stream started"); channels}
-        Err(e) => {
-            tracing::error!("Deepgram stream failed: {}", e);
-            let _ = socket.send(Message::Text(format!("error:{}", e).into())).await;
-            return;
-        }
-    };
+
+    let(transcript_tx, mut transcript_rx) = tokio::sync::mpsc::channel::<(u32, String)>(32);
+
+    let segment_counter = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
 
     let mut full_transcript= String::new();
     let mut llm_rx: Option<tokio::sync::oneshot::Receiver<String>> = None;
+
+    let mut pending: std::collections::BTreeMap<u32, String> = std::collections::BTreeMap::new();
+    let mut next_expected: u32 = 0;
     
-    // In parallel, we read transcripts from Deepgram and send them to the client
+
     loop {
         tokio::select! {
-            // Branch 1: Deepgram sent a text
-            Some(transcript) = transcript_rx.recv() => {
-                tracing::debug!("Transcript received: '{}'", transcript);
-                full_transcript.push_str(
-                    if transcript.starts_with("final:") {
-                        &transcript["final:".len()..]
-                    } else { "" }
-                );
-                if transcript.starts_with("final:"){
-                    full_transcript.push(' ');
+            Some((seq, text)) = transcript_rx.recv() => {
+                pending.insert(seq, text);
+
+                while let Some(t) = pending.remove(&next_expected) {
+                    if !t.is_empty() {
+                        full_transcript.push_str(&t);
+                        full_transcript.push(' ');
+                        let _ = socket.send(Message::Text(format!("transcript:final:{}", t).into())).await;
+                    }
+                    next_expected += 1;
                 }
-                let _ = socket.send(Message::Text(format!("transcript:{}", transcript).into())).await;
             }
 
             Ok(result) = async {
@@ -73,16 +70,35 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                 let _ = socket.send(Message::Text(result.into())).await;
             }
 
-            // Branch 2: Browser sent audio or command
             Some(Ok(msg)) = socket.recv() => {
                 match msg {
                     Message::Binary(bytes) => {
-                        tracing::debug!("Audio chunk: {} bytes", bytes.len());
-                        if audio_tx.send(bytes.to_vec()).await.is_err() {
-                            tracing::warn!("Audio channel closed");
-                            break;
-                        }
+                        let deepgram = state.deepgram.clone();
+                        let tx = transcript_tx.clone();
+                        let lang = transcript_lang.clone();
+
+                        let counter = segment_counter.clone();
+                        let seq = counter.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                        tracing::debug!("Sending segment #{} to Deepgram ({} bytes)", seq, bytes.len());
+
+                        tokio::spawn(async move {
+                            match deepgram.transcribe_with_lang(
+                                bytes.to_vec(),
+                                "audio/wav",
+                                &lang,
+                            ).await {
+                                Ok(text) if !text.trim().is_empty() => {
+                                    let _ = tx.send((seq, text)).await;
+                                }
+                                Ok(_) => { let _ = tx.send((seq, String::new())).await; } 
+                                Err(e) => { 
+                                    tracing::error!("Segment #{} error: {}", seq, e);
+                                    let _ = tx.send((seq, String::new())).await;
+                                }
+                            }
+                        });
                     }
+
                     Message::Text(cmd) => {
                         tracing::info!("Command: {}", cmd);
                         match cmd.as_str() {
@@ -92,9 +108,7 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                                     continue;
                                 }
 
-                                if llm_rx.is_some() {
-                                    continue;
-                                }
+                                if llm_rx.is_some() { continue; }
 
                                 let _ = socket.send(Message::Text("status:Processing...".into())).await;
     

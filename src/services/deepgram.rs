@@ -119,6 +119,61 @@ impl DeepgramService {
         Ok((audio_tx, text_rx))
     }
 
+    pub async fn transcribe_with_lang(
+        &self,
+        audio_data: Vec<u8>,
+        content_type: &str,
+        language: &str,
+    ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+    let url = if language == "multi" {
+        "https://api.deepgram.com/v1/listen\
+            ?model=nova-2\
+            &smart_format=true\
+            &punctuate=true\
+            &detect_language=true"
+            .to_string()
+    } else {
+        format!(
+            "https://api.deepgram.com/v1/listen\
+                ?model=nova-2\
+                &smart_format=true\
+                &punctuate=true\
+                &language={}",
+            language
+        )
+    };
+
+    let response = self.client
+        .post(&url)
+        .header("Authorization", format!("Token {}", self.api_key))
+        .header("Content-Type", content_type)
+        .body(audio_data)
+        .send()
+        .await?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let body = response.text().await.unwrap_or_else(|_| "unreadable".to_string());
+        return Err(format!("Deepgram {}: {}", status, body).into());
+    }
+
+    #[derive(serde::Deserialize)]
+    struct Resp { results: Results }
+    #[derive(serde::Deserialize)]
+    struct Results { channels: Vec<Channel> }
+    #[derive(serde::Deserialize)]
+    struct Channel { alternatives: Vec<Alt> }
+    #[derive(serde::Deserialize)]
+    struct Alt { transcript: String }
+
+    let parsed: Resp = response.json().await?;
+    Ok(parsed.results.channels
+        .first()
+        .and_then(|c| c.alternatives.first())
+        .map(|a| a.transcript.clone())
+        .unwrap_or_default())
+}
+
     pub async fn transcribe(&self, audio_data: Vec<u8>, content_type: &str) -> Result<String, Box<dyn std::error::Error>> {
         let url = "https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&punctuate=true&detect_language=true";
 
